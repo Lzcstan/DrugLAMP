@@ -1,0 +1,11 @@
+rdkit==2022.9.5
+torch_geometric==2.3.0
+dgllife==0.3.2
+torchmetrics==0.11.4
+lightning-utilities==0.8.0
+pytorch-lightning==2.0.1.post0
+einops
+yacs
+networkx
+transformers==4.28.1
+fair-esm

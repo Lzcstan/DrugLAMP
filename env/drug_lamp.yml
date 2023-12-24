@@ -1,0 +1,9 @@
+name: drug_lamp
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - cudatoolkit=11.3
+  - cudnn=8.3
+  - tqdm
+  - scikit-learn
