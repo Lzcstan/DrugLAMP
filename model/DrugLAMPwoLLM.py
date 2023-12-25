@@ -16,7 +16,7 @@ class DrugLAMPwoLLM(DrugLAMPBase):
         xp_ssl = None
         fill_bit_p_ssl = fill_bit_p
         vd_ssl = vd
-        xd_ssl = xd
+        xd_ssl = None
         ssl = {
             'vp': vp_ssl,
             'xp': xp_ssl,

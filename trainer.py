@@ -169,20 +169,16 @@ class ExpModule(pl.LightningModule):
 
         opt.zero_grad()
         _, cls_loss = binary_cross_entropy(score, labels) if (self.n_class == 1) else cross_entropy_logits(score, labels)
-        self.manual_backward(cls_loss)
-        opt.step()
-        self.log('train_cls_loss', cls_loss, on_step=False, on_epoch=True, logger=True, sync_dist=True, prog_bar=True)
+        self.manual_backward(cls_loss, retain_graph=True) if (compute_ssl or compute_ssl) else self.manual_backward(cls_loss)
+        self.log('train_loss', cls_loss, on_step=False, on_epoch=True, logger=True, sync_dist=True, prog_bar=True)
         loss = cls_loss
-
         if compute_ssl:
             opt_ssl.zero_grad()
             ssl_loss_dict = self.exp_model.ssl_model(**ssl_input)
             ssl_loss = (ssl_loss_dict['prot_ssl'] + ssl_loss_dict['drug_ssl']) * 0.1
-            self.manual_backward(ssl_loss)
-            opt_ssl.step()
-            self.log('train_ssl_loss', ssl_loss, on_step=False, on_epoch=True, logger=True, sync_dist=True)
+            self.manual_backward(ssl_loss, retain_graph=True) if (compute_cm) else self.manual_backward(ssl_loss)
+            self.log('ssl_loss', ssl_loss, on_step=False, on_epoch=True, logger=True, sync_dist=True, prog_bar=True)
             loss += ssl_loss
-
         if compute_cm:
             opt_cm.zero_grad()
             cm_input['meta'] = self.meta
@@ -194,11 +190,16 @@ class ExpModule(pl.LightningModule):
                     self.cm_weight *= 10
             cm_loss = cm_loss * self.cm_weight
             self.manual_backward(cm_loss)
-            opt_cm.step()
-            self.log('train_cm_loss', cm_loss, on_step=False, on_epoch=True, logger=True, sync_dist=True)
+            self.log('cm_loss', cm_loss, on_step=False, on_epoch=True, logger=True, sync_dist=True, prog_bar=True)
             loss += cm_loss
         
-        self.log('train_loss', loss, on_step=False, on_epoch=True, logger=True, sync_dist=True)
+        opt.step()
+        if compute_ssl:
+            opt_ssl.step()
+        if compute_cm:
+            opt_cm.step()
+
+        self.log('all_loss', loss, on_step=False, on_epoch=True, logger=True, sync_dist=True)
 
     def on_train_epoch_end(self):
         cur_epoch = self.current_epoch + 1
@@ -232,7 +233,7 @@ class ExpModule(pl.LightningModule):
         self.val_auroc.update(n, labels.long())
         self.val_auprc.update(n, labels.long())
 
-        self.log('val_cls_loss', cls_loss, on_step=False, on_epoch=True, logger=True, sync_dist=True)
+        self.log('val_loss', cls_loss, on_step=False, on_epoch=True, logger=True, sync_dist=True)
         self.log('val_auroc', self.val_auroc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log('val_auprc', self.val_auprc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
@@ -250,7 +251,7 @@ class ExpModule(pl.LightningModule):
         self.test_f1.update(n, labels.long())
         self.test_pr.update(n, labels.long())
 
-        self.log('test_cls_loss', cls_loss, on_step=False, on_epoch=True, logger=True, sync_dist=True)
+        self.log('test_loss', cls_loss, on_step=False, on_epoch=True, logger=True, sync_dist=True)
         self.log('test_auroc', self.test_auroc, on_step=False, on_epoch=True, logger=True, prog_bar=True)
         self.log('test_auprc', self.test_auprc, on_step=False, on_epoch=True, logger=True, prog_bar=True)
         self.log('test_acc', self.test_acc, on_step=False, on_epoch=True, logger=True, prog_bar=True)

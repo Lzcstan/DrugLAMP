@@ -28,7 +28,7 @@ class SSL(nn.Module):
         self.net = SimProj(n_hidden)
         self.llm_net = SimProj(n_hidden)
         if self.drug_ssl_type == 'simsiam':
-            self.online_predictor = PredictorMLP(n_hidden, n_hidden, n_hidden * 4)
+            self.predictor = PredictorMLP(n_hidden, n_hidden, n_hidden * 4)
         else:
             self.temperature = 0.1
 
@@ -41,22 +41,26 @@ class SSL(nn.Module):
         return loss
     
     def drug_simsiam(self, vd, xd):
-        online_proj_one = self.net(rearrange(vd, '... d -> (...) d'))
-        online_proj_two = self.llm_net(rearrange(xd, '... d -> (...) d'))
+        drug_one, drug_two = rearrange(vd, '... d -> (...) d'), rearrange(xd, '... d -> (...) d')
 
-        online_pred_one = self.online_predictor(online_proj_one)
-        online_pred_two = self.online_predictor(online_proj_two)
+        proj_one = self.net(drug_one)
+        proj_two = self.llm_net(drug_two)
+
+        pred_one = self.predictor(proj_one)
+        pred_two = self.predictor(proj_two)
 
         with torch.no_grad():
             target_net = self.net
             llm_target_net = self.llm_net
-            target_proj_one = target_net(rearrange(vd, '... d -> (...) d'))
-            target_proj_two = llm_target_net(rearrange(xd, '... d -> (...) d'))
-            target_proj_one.detach_()
-            target_proj_two.detach_()
+            target_proj_one = target_net(drug_one)
+            target_proj_two = llm_target_net(drug_two)
+            # target_proj_one.detach_()
+            target_proj_one = target_proj_one.detach()
+            # target_proj_two.detach_()
+            target_proj_two = target_proj_two.detach_()
 
-        loss1 = loss_fn(online_pred_one, target_proj_two)
-        loss2 = loss_fn(online_pred_two, target_proj_one)
+        loss1 = loss_fn(pred_one, target_proj_two)
+        loss2 = loss_fn(pred_two, target_proj_one)
         loss = loss1 + loss2
         return loss.mean()
     

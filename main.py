@@ -1,25 +1,13 @@
-import time
-import torch
-import esm.pretrained as esp
-import argparse, sys, warnings, os
-torch.set_float32_matmul_precision('medium')
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,5"
-
-from rich import print
-from model import MInterface
-from trainer import ExpModule
-from configs import get_cfg_defaults
-from torch.utils.data import DataLoader
-from handler import MultiModalityDataset
-from utils import set_seed, multimodality_collate_func, mkdir
-
 comet_support = True
 try:
     from comet_ml import Experiment
-    from pytorch_lightning.loggers import CometLogger
 except ImportError as e:
     print("Comet ML is not installed, ignore the comet experiment monitor")
     comet_support = False
+
+import time
+import esm.pretrained as esp
+import argparse, sys, warnings, os
 
 n_layer2esp_fns = {
     48: esp.esm2_t48_15B_UR50D,
@@ -36,8 +24,22 @@ parser.add_argument('--data', required=True, type=str, metavar='TASK', help='dat
 parser.add_argument('--model', required=True, help="which model to do DTI prediction", type=str)
 parser.add_argument('--n-layer', default=30, help="which esp.esm2 llm to use", type=int, choices=list(n_layer2esp_fns.keys()))
 parser.add_argument('--split', default='random', type=str, metavar='S', help="split task", choices=['random', 'cold', 'cluster', 'Tcpi'])
+parser.add_argument('--devices', type=str, help='CUDA visible devices')
 
 args = parser.parse_args()
+os.environ["CUDA_VISIBLE_DEVICES"] = args.devices if args.devices else ""
+
+from rich import print
+from model import MInterface
+from trainer import ExpModule
+from configs import get_cfg_defaults
+from handler import MultiModalityDataset
+from pytorch_lightning.loggers import CometLogger
+from utils import set_seed, multimodality_collate_func, mkdir
+
+import torch
+from torch.utils.data import DataLoader
+torch.set_float32_matmul_precision('medium')
 device = torch.device('cpu')
 
 def main():
