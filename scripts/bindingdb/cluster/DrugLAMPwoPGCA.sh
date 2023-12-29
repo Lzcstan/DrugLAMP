@@ -20,7 +20,7 @@ do
   echo "Running the script with argument: $arg"
   while true
   do
-    python $SCRIPT $arg --devices $devices
+    python -W ignore $SCRIPT $arg --devices $devices
     exit_code=$?
     if [ $exit_code -eq 0 ]
     then
