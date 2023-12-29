@@ -2,11 +2,39 @@ import torch
 import torchmetrics as M
 import pytorch_lightning as pl
 
+from rich import print
+from typing import Any, List, Optional, Union
 from scheduler import CosineAnnealingWarmupRestarts
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from model.basic_model import binary_cross_entropy, cross_entropy_logits
 
+from torchmetrics.utilities.data import dim_zero_cat
+from torchmetrics.functional.classification.auroc import _binary_auroc_compute
+from torchmetrics.classification.precision_recall_curve import BinaryPrecisionRecallCurve
+from torchmetrics.functional.classification.average_precision import _binary_average_precision_compute
+
+class BinaryAUSum(BinaryPrecisionRecallCurve):
+    is_differentiable: bool = False
+    higher_is_better: Optional[bool] = None
+    full_state_update: bool = False
+
+    def __init__(
+        self,
+        max_fpr: Optional[float] = None,
+        thresholds: Optional[Union[int, List[float], torch.Tensor]] = None,
+        ignore_index: Optional[int] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(thresholds=thresholds, ignore_index=ignore_index, validate_args=False, **kwargs)
+        self.max_fpr = max_fpr
+
+    def compute(self) -> torch.Tensor:
+        if self.thresholds is None:
+            state = [dim_zero_cat(self.preds), dim_zero_cat(self.target)]
+        else:
+            state = self.confmat
+        return _binary_auroc_compute(state, self.thresholds, self.max_fpr) + _binary_average_precision_compute(state, self.thresholds)
 
 class ExpModule(pl.LightningModule):
     def __init__(self, model, opt, train_dl, val_dl, test_dl,
@@ -15,6 +43,9 @@ class ExpModule(pl.LightningModule):
         # Lightning config
         self.automatic_optimization = False
         self.log_step = 10
+
+        # Logger
+        self.comet_logger = logger
 
         # Config
         self.config = config
@@ -74,12 +105,10 @@ class ExpModule(pl.LightningModule):
         ) if self.use_cm else None
         self.cm_weight = 1
 
-        # Logger
-        self.comet_logger = logger
-
         # Metrics
         self.val_auroc = M.AUROC(task='binary')
         self.val_auprc = M.AveragePrecision(task='binary')
+        self.val_ausum = BinaryAUSum()
 
         self.test_auroc = M.AUROC(task='binary')
         self.test_auprc = M.AveragePrecision(task='binary')
@@ -112,7 +141,6 @@ class ExpModule(pl.LightningModule):
     def set_exp_trainer(self):
         pl.seed_everything(self.seed, workers=True)
         self.exp_trainer = pl.Trainer(
-            default_root_dir=self.output_dir,
             max_epochs=self.epochs,
             log_every_n_steps=self.log_step,
             accelerator='auto',
@@ -121,16 +149,16 @@ class ExpModule(pl.LightningModule):
             check_val_every_n_epoch=1,
             callbacks=[
                 ModelCheckpoint(
-                    monitor='val_auroc',
-                    filename='best_{val_auroc: .5f}',
+                    monitor='val_ausum',
+                    filename='max_{val_ausum: .5f}',
                     mode='max',
-                    save_last=True
+                    # save_last=True
                 ),
-                ModelCheckpoint(filename='last_{epoch}'),
+                # ModelCheckpoint(filename='last_{epoch}'),
                 EarlyStopping(
-                    monitor='val_auroc',
+                    monitor='val_ausum',
                     mode='max',
-                    patience=25,
+                    patience=int(self.epochs / 4),
                 )
             ]
         )
@@ -232,10 +260,12 @@ class ExpModule(pl.LightningModule):
 
         self.val_auroc.update(n, labels.long())
         self.val_auprc.update(n, labels.long())
+        self.val_ausum.update(n, labels.long())
 
         self.log('val_loss', cls_loss, on_step=False, on_epoch=True, logger=True, sync_dist=True)
         self.log('val_auroc', self.val_auroc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log('val_auprc', self.val_auprc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_ausum', self.val_ausum, on_step=False, on_epoch=True, logger=True)
 
     def test_step(self, batch, batch_idx):
         feat_d, feat_p, labels, llm_d, llm_p = batch

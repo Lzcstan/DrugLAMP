@@ -35,7 +35,7 @@ from trainer import ExpModule
 from configs import get_cfg_defaults
 from handler import MultiModalityDataset
 from pytorch_lightning.loggers import CometLogger
-from utils import set_seed, multimodality_collate_func, mkdir
+from utils import set_seed, multimodality_collate_func
 
 import torch
 from torch.utils.data import DataLoader
@@ -56,13 +56,10 @@ def main():
     cfg.merge_from_file(model_cfg)
     cfg.SOLVER.SEED = seed
     set_seed(cfg.SOLVER.SEED)
-    timestamp = time.strftime("%m%d_%H%M") # TODO
+    timestamp = time.strftime("%m%d_%H%M%S") # Only used in rankzero
     exp_name = f"{ds_name}-{ds_split}-"\
         + f"{model_cfg[model_cfg.rfind('/') + 1: model_cfg.rfind('.')]}-"\
             + timestamp
-    cfg.RESULT.OUTPUT_DIR += exp_name.replace('-', '/')
-    mkdir(cfg.RESULT.OUTPUT_DIR)
-
     ds_folder = f'datasets/{ds_name}'
     ds_folder = os.path.join(ds_folder, ds_split)
     if ds_split == 'cluster' or ds_split == 'Tcpi':
@@ -71,9 +68,6 @@ def main():
     if not comet_support:
         cfg.COMET.USE = False
         print('Choose not to use the Comet.ml...')
-
-    print(f"Config yaml: {model_cfg}")
-    print(f"Hyperparameters: {dict(cfg)}")
 
     esp_fn = n_layer2esp_fns[n_layer]
     gen_embed = cfg.SOLVER.SEED == 40
@@ -93,11 +87,12 @@ def main():
     logger = None
     if cfg.COMET.USE and comet_support:
         # LLM specific config
-        cfg.COMET.TAG += f' with CM normed p-tri-margin loss. m_ori={cfg.RS.MAX_MARGIN}, n_re={cfg.RS.RESET_EPOCH}'
+        cfg.COMET.TAG += f'bsz={cfg.SOLVER.BATCH_SIZE};e_i={cfg.RS.INIT_EPOCH};e_s={cfg.RS.EPOCH_STEP};m={cfg.RS.MAX_MARGIN};e_r={cfg.RS.RESET_EPOCH};lr={cfg.SOLVER.LR};ssl_lr={cfg.SOLVER.SSL_LR};cm_lr={cfg.SOLVER.CM_LR}'
 
         logger = CometLogger(
             project_name=cfg.COMET.PROJECT_NAME,   
             workspace=cfg.COMET.WORKSPACE,
+            save_dir=cfg.RESULT.OUTPUT_DIR + exp_name.replace('-', '/'),
             auto_output_logging="simple",
             log_graph=True,
             log_code=False,
@@ -125,10 +120,13 @@ def main():
                 "CM_optim_lr": cfg.SOLVER.CM_LR
             }
             hyper_params.update(cm_hyper_params)
-        logger.experiment.log_parameters(hyper_params)
+        logger.log_hyperparams(hyper_params)
         if cfg.COMET.TAG is not None:
             logger.experiment.add_tag(cfg.COMET.TAG)
         logger.experiment.set_name(exp_name)
+        if logger.experiment.get_name():
+            print(f"Config yaml: {model_cfg}")
+            print(f"Hyperparameters: {dict(cfg)}")
 
     params = {'batch_size': cfg.SOLVER.BATCH_SIZE, 'shuffle': True, 'num_workers': cfg.SOLVER.NUM_WORKERS,
               'drop_last': True, 'collate_fn': multimodality_collate_func}
@@ -155,15 +153,14 @@ def main():
     opt_cm = torch.optim.AdamW(model.parameters(), lr=cfg.SOLVER.CM_LR) if cfg.RS.CM else None
 
     torch.backends.cudnn.benchmark = True
-    trainer = ExpModule(model, opt, train_generator, val_generator, test_generator,
+    exp_module = ExpModule(model, opt, train_generator, val_generator, test_generator,
                         opt_ssl=opt_ssl,
                         opt_cm=opt_cm,
                         split=ds_split,
                         logger=logger, **cfg)
-    trainer.run_experiment()
+    exp_module.run_experiment()
 
-    print('Rank: ', trainer.global_rank)
-    print(f"Directory for saving result: {cfg.RESULT.OUTPUT_DIR}")
+    print('Rank: ', exp_module.global_rank)
     
 if __name__ == '__main__':
     s = time.time()

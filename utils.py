@@ -16,6 +16,7 @@ from contextlib import contextmanager
 from functools import partial, wraps, reduce
 from torch_geometric.utils import from_smiles
 from torch.utils.checkpoint import checkpoint
+from lightning_utilities.core.rank_zero import rank_zero_only
 
 REPO_PATH = '~/projects/DrugLAMP/'
 
@@ -332,6 +333,7 @@ def multimodality_collate_func(x):
     p_llm = repeat_pad([l['prot'].x for l in llm], 9 * 256)
     return d, torch.tensor(np.array(p)), torch.tensor(y), d_llm, p_llm, meta
 
+@rank_zero_only
 def mkdir(path):
     path = path.strip()
     path = path.rstrip("\\")
