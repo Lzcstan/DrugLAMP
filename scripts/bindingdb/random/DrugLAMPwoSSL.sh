@@ -8,10 +8,10 @@ SCRIPT="main.py"
 # Define the arguments for each run
 ARGS=(
   "--model DrugLAMPwoSSL --data bindingdb --split random --seed 40"
-  # "--model DrugLAMPwoSSL --data bindingdb --split random --seed 41"
-  # "--model DrugLAMPwoSSL --data bindingdb --split random --seed 42"
-  # "--model DrugLAMPwoSSL --data bindingdb --split random --seed 43"
-  # "--model DrugLAMPwoSSL --data bindingdb --split random --seed 44"
+  "--model DrugLAMPwoSSL --data bindingdb --split random --seed 41"
+  "--model DrugLAMPwoSSL --data bindingdb --split random --seed 42"
+  "--model DrugLAMPwoSSL --data bindingdb --split random --seed 43"
+  "--model DrugLAMPwoSSL --data bindingdb --split random --seed 44"
 )
 
 # Loop through each set of arguments and run the script

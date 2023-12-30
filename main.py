@@ -102,6 +102,8 @@ def main():
             auto_metric_logging=False
         )
         hyper_params = {
+            "BATCH_SIZE": cfg.SOLVER.BATCH_SIZE,
+            "MAX_EPOCH": cfg.SOLVER.MAX_EPOCH,
             "LR": cfg.SOLVER.LR,
             "Output_dir": cfg.RESULT.OUTPUT_DIR,
             "SSL_use": cfg.RS.SSL,
