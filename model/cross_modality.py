@@ -34,6 +34,12 @@ def ccpp_p_tri_loss(loss_fn, gt, pid2t, did2t, p_lats, d_lats):
                 nids.append(neg_id)
             anchor, positive, negative = p_lats[aids], d_lats[pids], d_lats[nids]
             p_tri_loss += loss_fn(anchor, positive, negative)
+        elif len(neg_ids) > 0:
+            n_tri += len(neg_ids)
+            aids = [i] * len(neg_ids)
+            pids = aids
+            anchor, positive, negative = p_lats[aids], p_lats[pids], d_lats[neg_ids]
+            p_tri_loss += loss_fn(anchor, positive, negative)
     
     if n_tri == 0:
         n_tri = 1

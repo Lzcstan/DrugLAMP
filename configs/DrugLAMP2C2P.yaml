@@ -1,19 +1,19 @@
 SOLVER:
-  BATCH_SIZE: 32
-  MAX_EPOCH: 100
-  LR: 5e-5
-  SSL_LR: 5e-5
-  CM_LR: 5e-5
+  BATCH_SIZE: 16
+  MAX_EPOCH: 120
+  LR: 1e-4
+  SSL_LR: 3e-5
+  CM_LR: 1e-5
   SEED: 42
-  NUM_WORKERS: 8
+  NUM_WORKERS: 4
 
 RS:
   SSL: True
   CM: True
-  INIT_EPOCH: 5
-  EPOCH_STEP: 5
+  INIT_EPOCH: 6
+  EPOCH_STEP: 6
   MAX_MARGIN: 0.5
-  RESET_EPOCH: 100
+  RESET_EPOCH: 120
 
 DECODER:
   BINARY: 1
@@ -21,4 +21,4 @@ DECODER:
 # Config below only when you use comet
 COMET:
   PROJECT_NAME: "DrugLAMP"
-  TAG: "Reproduce-bsz_32-DrugLAMP2C2P"
+  TAG: ""

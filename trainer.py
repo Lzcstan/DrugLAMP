@@ -168,7 +168,7 @@ class ExpModule(pl.LightningModule):
             devices=1 if single else 'auto',
             strategy='auto' if single else 'ddp_find_unused_parameters_true',
             log_every_n_steps=self.log_step,
-            fast_dev_run=self.log_step,
+            fast_dev_run=self.log_step
         )
     
     def on_before_batch_transfer(self, batch, dataloader_idx: int):
@@ -197,7 +197,7 @@ class ExpModule(pl.LightningModule):
 
         opt.zero_grad()
         _, cls_loss = binary_cross_entropy(score, labels) if (self.n_class == 1) else cross_entropy_logits(score, labels)
-        self.manual_backward(cls_loss, retain_graph=True) if (compute_ssl or compute_ssl) else self.manual_backward(cls_loss)
+        self.manual_backward(cls_loss, retain_graph=True) if (compute_ssl or compute_cm) else self.manual_backward(cls_loss)
         self.log('train_loss', cls_loss, on_step=False, on_epoch=True, logger=True, sync_dist=True, prog_bar=True)
         loss = cls_loss
         if compute_ssl:
@@ -208,15 +208,16 @@ class ExpModule(pl.LightningModule):
             self.log('ssl_loss', ssl_loss, on_step=False, on_epoch=True, logger=True, sync_dist=True, prog_bar=True)
             loss += ssl_loss
         if compute_cm:
-            opt_cm.zero_grad()
             cm_input['meta'] = self.meta
             cm_loss = self.exp_model.cm_model(**cm_input)
-            if cur_epoch == self.cm_init_epoch and cm_loss.item() > 0:
-                while cm_loss.item() * self.cm_weight / 10 > cls_loss.item():
-                    self.cm_weight /= 10
-                while cm_loss.item() * self.cm_weight * 10 < cls_loss.item():
-                    self.cm_weight *= 10
+            if cur_epoch == self.cm_init_epoch:
+                if cm_loss.item() > 0:
+                    while cm_loss.item() * self.cm_weight / 10 > cls_loss.item():
+                        self.cm_weight /= 10
+                    while cm_loss.item() * self.cm_weight * 10 < cls_loss.item():
+                        self.cm_weight *= 10
             cm_loss = cm_loss * self.cm_weight
+            opt_cm.zero_grad()
             self.manual_backward(cm_loss)
             self.log('cm_loss', cm_loss, on_step=False, on_epoch=True, logger=True, sync_dist=True, prog_bar=True)
             loss += cm_loss
