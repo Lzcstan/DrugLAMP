@@ -25,6 +25,7 @@ parser.add_argument('--model', required=True, help="which model to do DTI predic
 parser.add_argument('--n-layer', default=30, help="which esp.esm2 llm to use", type=int, choices=list(n_layer2esp_fns.keys()))
 parser.add_argument('--split', default='random', type=str, metavar='S', help="split task", choices=['random', 'cold', 'cluster', 'Tcpi'])
 parser.add_argument('--devices', type=str, help='CUDA visible devices')
+parser.add_argument('--max_epoch', type=int)
 
 args = parser.parse_args()
 os.environ["CUDA_VISIBLE_DEVICES"] = args.devices if args.devices else ""
@@ -50,6 +51,7 @@ def main():
     ds_split = args.split
     seed = args.seed
     comet_support = not args.no_comet
+    max_epoch = args.max_epoch
 
     torch.cuda.empty_cache()
     cfg = get_cfg_defaults()
@@ -65,6 +67,9 @@ def main():
     if ds_split == 'cluster' or ds_split == 'Tcpi':
         cfg.RS.TASK = True
 
+    if max_epoch:
+        cfg.SOLVER.MAX_EPOCH = max_epoch 
+        
     if not comet_support:
         cfg.COMET.USE = False
         print('Choose not to use the Comet.ml...')

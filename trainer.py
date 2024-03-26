@@ -98,10 +98,10 @@ class ExpModule(pl.LightningModule):
         ) if self.use_ssl else None
         self.schd_cm = CosineAnnealingWarmupRestarts(
             optimizer=self.opt_cm,
-            first_cycle_steps=int(self.epochs / self.ssl_epoch_step),
+            first_cycle_steps=self.epochs,
             max_lr=self.max_cm_lr,
             min_lr=1e-8,
-            warmup_steps=int(self.epochs * 0.2 / self.ssl_epoch_step)
+            warmup_steps=int(self.epochs * 0.2)
         ) if self.use_cm else None
         self.cm_weight = 1
 
@@ -208,6 +208,7 @@ class ExpModule(pl.LightningModule):
             self.log('ssl_loss', ssl_loss, on_step=False, on_epoch=True, logger=True, sync_dist=True, prog_bar=True)
             loss += ssl_loss
         if compute_cm:
+            opt_cm.zero_grad()
             cm_input['meta'] = self.meta
             cm_loss = self.exp_model.cm_model(**cm_input)
             if cur_epoch == self.cm_init_epoch:
@@ -217,7 +218,6 @@ class ExpModule(pl.LightningModule):
                     while cm_loss.item() * self.cm_weight * 10 < cls_loss.item():
                         self.cm_weight *= 10
             cm_loss = cm_loss * self.cm_weight
-            opt_cm.zero_grad()
             self.manual_backward(cm_loss)
             self.log('cm_loss', cm_loss, on_step=False, on_epoch=True, logger=True, sync_dist=True, prog_bar=True)
             loss += cm_loss
